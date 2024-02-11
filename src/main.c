@@ -5,7 +5,6 @@
 #include <netinet/in.h> // For sockaddr_in struct
 #include <string.h>
 #include <unistd.h>
-#include <pthread.h>
 #include <fcntl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -22,7 +21,7 @@ int main(void){
   struct sockaddr_in server_address;
   socklen_t server_addrlen = sizeof(server_address);
   char buf[BUF_SIZE];
-
+  int enable = 1;
   
   /* Create a new socket, AF_INET is a const declared in sys/socket.h
      and means we are using IPv4 address family. SOCK_STREAM is also
@@ -35,6 +34,8 @@ int main(void){
     perror("Socket creation failed");
     exit(EXIT_FAILURE);
   }
+  //Setsockopt to prevent Address already in use error when restarting server quickly
+  setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, (const char*)&enable, sizeof(enable));
 
   server_address.sin_family = AF_INET;
   server_address.sin_addr.s_addr = INADDR_ANY;
@@ -59,6 +60,8 @@ int main(void){
     struct sockaddr_in client_address;
     socklen_t client_len = sizeof(client_address);
     *client_fd = accept(server_fd, (struct sockaddr*) &client_address, (socklen_t*)&client_len);
+    read(*client_fd, buf, BUF_SIZE);
+    printf("Request: %s", buf);
     
     if(*client_fd < 0){
       perror("Error on accept");
@@ -79,6 +82,7 @@ void client_handler(int* arg){
   int index_fd = open("index.html", O_RDONLY);
   ssize_t bytes_read;
   int f_size = get_file_size(index_fd);
+  
   sprintf(resp, "HTTP/1.1 200 OK\nContent-Type: text/html\nContent-Length: %d\n\n", f_size);
   send(client_fd, resp, strlen(resp), 0);
 
